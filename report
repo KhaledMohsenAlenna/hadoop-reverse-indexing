@@ -1,0 +1,54 @@
+# Technical Report: Scalable Distributed Reverse Indexing Engine
+**Document Type:** Engineering Architecture & Implementation Report
+**Domain:** Big Data, Distributed Systems, Search Engine Architecture
+
+---
+
+## 1. Abstract
+As the volume of unstructured text data grows exponentially, traditional single-node indexing mechanisms face severe processing bottlenecks. This report details the design, architecture, and implementation of a Distributed Reverse Indexing Engine. The system leverages Apache Hadoop's MapReduce paradigm and HDFS to process large-scale text corpora in parallel, generating an optimized inverted index that serves as the backbone for efficient search and retrieval operations.
+
+## 2. Introduction & Problem Statement
+The fundamental challenge in full-text search is locating specific terms across millions of documents with sub-second latency. Scanning documents sequentially is computationally prohibitive. The industry-standard solution is the **Inverted Index** (or Reverse Index), which maps query terms to their specific document locations and frequencies.
+
+This project addresses the challenge of building this index at scale. By utilizing a distributed computing framework, the indexing workload is divided into smaller, manageable tasks processed concurrently across a cluster, ensuring high throughput, fault tolerance, and horizontal scalability.
+
+
+
+## 3. System Architecture
+The architecture is containerized using **Docker** to ensure consistent deployment environments and simulates a multi-node Hadoop cluster.
+
+### 3.1. Storage Layer (HDFS)
+The Hadoop Distributed File System (HDFS) acts as the foundational storage layer. Raw text documents are ingested into HDFS, where they are partitioned into blocks and replicated across the cluster to ensure high availability and data locality during processing.
+
+### 3.2. Processing Layer (MapReduce)
+The processing pipeline is implemented using the MapReduce programming model via Hadoop Streaming. The workflow consists of three primary stages:
+
+* **Mapping Phase:** Parses input splits and extracts key-value pairs.
+* **Combining Phase:** A local aggregation step to optimize network traffic.
+* **Reducing Phase:** The final global aggregation to build the index.
+
+## 4. Implementation & Methodology
+The core logic is implemented in Python, ensuring efficient text processing and sanitization.
+
+### 4.1. Text Sanitization (`stopwords.txt`)
+Before indexing, raw text introduces noise (e.g., punctuation, common conjunctions). A preprocessing layer filters out uninformative words using a predefined `stopwords.txt` dictionary. This step significantly reduces the final index size and improves search relevance.
+
+### 4.2. The Mapper (`mapper.py`)
+The Mapper script reads the sanitized text line by line. It tokenizes the text into individual words and emits an intermediate key-value pair for every word encountered. 
+* **Output Format:** `(Word, Document_ID)`
+
+### 4.3. The Combiner (`combiner.py`) - Network Optimization
+In a distributed environment, the "Shuffle and Sort" phase (transferring data from Mappers to Reducers) is highly network-intensive. To mitigate this, a Combiner is introduced. 
+Acting as a "mini-reducer" on the Mapper node, the Combiner aggregates the word counts locally before transmitting them across the network. This architectural decision drastically reduces bandwidth consumption and accelerates the overall job execution time.
+
+### 4.4. The Reducer (`reducer.py`)
+The Reducer receives the globally sorted and grouped data. It iterates through the values associated with each unique word, aggregating the frequencies per document.
+* **Final Output Format:** `Word -> {Document_A: Frequency, Document_B: Frequency}`
+
+## 5. Deployment & Execution
+The system is designed for zero-configuration deployment using Docker Compose (`docker-compose.yml`), which provisions the HDFS NameNode, DataNodes, and YARN Resource Manager.
+
+The distributed job is triggered via the Hadoop Streaming API, injecting the Python scripts into the cluster nodes and executing the parallel processing pipeline against the data stored in HDFS.
+
+## 6. Conclusion
+The implemented Distributed Reverse Indexing Engine successfully demonstrates the ability to process unstructured data at scale. By integrating architectural optimizations such as the Combiner phase and stop-word filtering, the system minimizes network overhead and storage requirements. This architecture serves as a robust, scalable foundation for building large-scale data retrieval systems and enterprise search engines.
